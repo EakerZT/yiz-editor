@@ -228,6 +228,57 @@ button {
   font: 14px var(--yiz-editor-site-font-family);
 }
 
+.layer-heading {
+  margin-top: 16px;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 8px;
+  overflow: hidden;
+  color: #475569;
+  font: 14px var(--yiz-editor-site-font-family);
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid #dbe3ed;
+  border-radius: 7px;
+  cursor: grab;
+  user-select: none;
+}
+
+.palette-item:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.palette-item > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-item-icon {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
 .layer-item {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
@@ -426,6 +477,19 @@ button {
 
 .architecture-note p {
   margin: 7px 0 0;
+}
+
+.screen-stage-background {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(56 189 248 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(56 189 248 / 5%) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0, rgb(14 165 233 / 14%), transparent 42%);
+  background-size:
+    40px 40px,
+    40px 40px,
+    100% 100%;
 }
 
 .print-header-boundary,

@@ -34,13 +34,23 @@ const guides = ref<DesignerGuide[]>([])
     v-model:guides="guides"
     :world-size="{ width: 210, height: 297 }"
     :unit="millimeterUnit"
+    :background-style="{ backgroundColor: '#fff' }"
+    @external-drop="onExternalDrop"
   >
+    <template #background>
+      <MyPageBackground />
+    </template>
     <template #element="{ element, isHover }">
       <MyElement :element="element" :is-hover="isHover" />
+    </template>
+    <template #overlay>
+      <MyBusinessGuides />
     </template>
   </DesignerCanvas>
 </template>
 ```
+
+`external-drop` 返回浏览器原始 `DragEvent`、Surface 视口坐标、当前单位下的世界坐标以及是否落在 World 内。组件只负责拖放接收和坐标换算，业务从 `dataTransfer` 读取类型并创建具体元素。
 
 ## 全局安装
 
@@ -84,6 +94,7 @@ yarn build
 
 ## 自动发布与站点部署
 
+- 包内已通过 `publishConfig.access: public` 固定为公开 scoped package；本地执行 `npm publish` 和工作流发布都会使用公开访问级别。
 - 推送 `v*` tag 或手动运行 `Publish npm` 工作流，会完成依赖安装、类型检查、测试、构建并将 `@eakerzt/yiz-editor` 公开发布到 npm。
 - 推送到 `main` / `master` 或手动运行 `Deploy Site` 工作流，会构建并部署 GitHub Pages：<https://eakerzt.github.io/yiz-editor/>。
 - npm 发布采用 GitHub Actions OIDC Trusted Publishing，需要在 npm 包设置中登记仓库 `EakerZT/yiz-editor` 和工作流文件 `publish-npm.yml`。

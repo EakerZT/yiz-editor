@@ -6,6 +6,8 @@
       'designer-canvas--panning': operation?.type === 'pan',
       'designer-canvas--creating-guide-pair': operation?.type === 'guide-pair-create',
       'designer-canvas--space': spacePressed,
+      'designer-canvas--external-drag': externalDragActive,
+      'designer-canvas--external-drag-inside': externalDragInsideWorld,
       'designer-canvas--disabled': disabled
     }"
     :style="{ '--yiz-editor-designer-ruler-size': `${rulerSize}px` }"
@@ -51,9 +53,21 @@
       :style="{ cursor: surfaceCursor }"
       @pointerdown="onSurfacePointerdown"
       @wheel="onWheel"
+      @dragover="onExternalDragover"
+      @dragleave="onExternalDragleave"
+      @drop="onExternalDrop"
     >
       <div class="designer-canvas__stage-shadow" :style="stageStyle" />
       <div class="designer-canvas__stage" :style="stageStyle">
+        <div
+          class="designer-canvas__world-background"
+          :class="backgroundClass"
+          :style="backgroundStyle"
+          data-designer-background
+        >
+          <slot name="background" :transform="currentTransform" :coordinate="coordinateApi" />
+        </div>
+
         <div
           v-for="element in visibleElements"
           :key="element.id"
@@ -84,7 +98,7 @@
           </div>
         </div>
 
-        <div class="designer-canvas__world-overlay">
+        <div class="designer-canvas__world-overlay" :class="overlayClass" :style="overlayStyle" data-designer-overlay>
           <slot name="overlay" :transform="currentTransform" :coordinate="coordinateApi" />
         </div>
       </div>
@@ -192,6 +206,7 @@ import { snapMoveRect, snapResizeRect } from './snap-engine'
 import { DEFAULT_TRANSFORM, TransformEngine } from './transform-engine'
 import type {
   DesignerCanvasExpose,
+  DesignerCanvasDropEvent,
   DesignerCoordinateApi,
   DesignerElementBase,
   DesignerElementCapabilities,
@@ -217,6 +232,10 @@ const props = withDefaults(
     hoveredId?: string
     hoverClass?: string
     hoverStyleMode?: DesignerHoverStyleMode
+    backgroundClass?: string
+    backgroundStyle?: Record<string, string | number>
+    overlayClass?: string
+    overlayStyle?: Record<string, string | number>
     worldSize: DesignerSize
     unit: DesignerUnit
     transform?: DesignerTransform
@@ -233,6 +252,7 @@ const props = withDefaults(
     autoFit?: boolean
     constrainToWorld?: boolean
     disabled?: boolean
+    dropEnabled?: boolean
     snap?: boolean
     snapThreshold?: number
     snapGridSize?: number
@@ -247,6 +267,10 @@ const props = withDefaults(
     hoveredId: undefined,
     hoverClass: '',
     hoverStyleMode: 'none',
+    backgroundClass: '',
+    backgroundStyle: () => ({}),
+    overlayClass: '',
+    overlayStyle: () => ({}),
     transform: () => ({ ...DEFAULT_TRANSFORM }),
     guides: () => [],
     minZoom: 0.1,
@@ -261,6 +285,7 @@ const props = withDefaults(
     autoFit: true,
     constrainToWorld: true,
     disabled: false,
+    dropEnabled: true,
     snap: true,
     snapThreshold: 6,
     snapGridSize: 0,
@@ -286,6 +311,8 @@ const emit = defineEmits<{
   'guide-remove': [guide: DesignerGuide]
   'delete-request': [ids: string[]]
   'element-hover': [event: DesignerElementHoverEvent]
+  'external-dragover': [event: DesignerCanvasDropEvent]
+  'external-drop': [event: DesignerCanvasDropEvent]
 }>()
 
 type RectMap = Record<string, DesignerRect>
@@ -320,6 +347,8 @@ const localHoveredId = ref<string | undefined>(props.hoveredId)
 const activeSnapLines = ref<DesignerSnapLine[]>([])
 const marqueeRect = ref<DesignerRect>()
 const marqueeMode = ref<'contain' | 'intersect'>('contain')
+const externalDragActive = ref(false)
+const externalDragInsideWorld = ref(false)
 let resizeObserver: ResizeObserver | undefined
 
 const engine = computed(() => new TransformEngine(props.unit, currentTransform.value))
@@ -373,12 +402,49 @@ function normalizeRect(rect: DesignerRect): DesignerRect {
   }
 }
 
-function pointFromEvent(event: PointerEvent | WheelEvent): DesignerPoint {
+function pointFromEvent(event: MouseEvent): DesignerPoint {
   const rect = surfaceRef.value?.getBoundingClientRect()
   return {
     x: event.clientX - (rect?.left ?? 0),
     y: event.clientY - (rect?.top ?? 0)
   }
+}
+
+function buildDropEvent(event: DragEvent): DesignerCanvasDropEvent {
+  const viewportPoint = pointFromEvent(event)
+  const worldPoint = engine.value.viewportToWorld(viewportPoint)
+  const insideWorld =
+    worldPoint.x >= 0 &&
+    worldPoint.y >= 0 &&
+    worldPoint.x <= props.worldSize.width &&
+    worldPoint.y <= props.worldSize.height
+  return { originalEvent: event, viewportPoint, worldPoint, insideWorld }
+}
+
+function onExternalDragover(event: DragEvent): void {
+  if (props.disabled || !props.dropEnabled) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+  const context = buildDropEvent(event)
+  externalDragActive.value = true
+  externalDragInsideWorld.value = context.insideWorld
+  emit('external-dragover', context)
+}
+
+function onExternalDragleave(event: DragEvent): void {
+  const relatedTarget = event.relatedTarget
+  if (relatedTarget instanceof Node && surfaceRef.value?.contains(relatedTarget)) return
+  externalDragActive.value = false
+  externalDragInsideWorld.value = false
+}
+
+function onExternalDrop(event: DragEvent): void {
+  if (props.disabled || !props.dropEnabled) return
+  event.preventDefault()
+  const context = buildDropEvent(event)
+  externalDragActive.value = false
+  externalDragInsideWorld.value = false
+  emit('external-drop', context)
 }
 
 function elementStageStyle(element: DesignerElementBase): Record<string, string> {
@@ -1542,8 +1608,33 @@ defineExpose<DesignerCanvasExpose>({
   background: #fff;
 }
 
+.designer-canvas--external-drag .designer-canvas__stage::after {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  box-sizing: border-box;
+  content: '';
+  pointer-events: none;
+  background: rgb(37 99 235 / 4%);
+  border: 2px dashed rgb(37 99 235 / 45%);
+}
+
+.designer-canvas--external-drag-inside .designer-canvas__stage::after {
+  background: rgb(16 185 129 / 6%);
+  border-color: #10b981;
+}
+
+.designer-canvas__world-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .designer-canvas__element {
   position: absolute;
+  z-index: 1;
   box-sizing: border-box;
   user-select: none;
   touch-action: none;

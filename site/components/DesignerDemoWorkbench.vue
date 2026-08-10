@@ -61,7 +61,27 @@
     <section class="workspace">
       <aside class="left-panel">
         <div class="panel-heading">
-          <span>元素</span>
+          <span>拖入新增</span>
+          <small>{{ unit.symbol }}</small>
+        </div>
+
+        <div class="palette-grid" aria-label="可拖入元素">
+          <button
+            v-for="item in paletteItems"
+            :key="item.kind"
+            class="palette-item"
+            type="button"
+            draggable="true"
+            :data-palette-kind="item.kind"
+            @dragstart="onPaletteDragstart($event, item)"
+          >
+            <span class="palette-item-icon" :style="{ background: item.color }" />
+            <span>{{ item.title }}</span>
+          </button>
+        </div>
+
+        <div class="panel-heading layer-heading">
+          <span>图层</span>
           <small>{{ elements.length }}</small>
         </div>
         <Button
@@ -85,6 +105,7 @@
           <p>拖动时会吸附网格、画布、辅助线和其他元素；按住 Shift 等比缩放。</p>
           <p>鼠标中键或空格 + 左键始终平移画布，即使指针位于元素、辅助线或控制点上；Ctrl + 滚轮缩放。</p>
           <p>从标尺拖出单条辅助线；从左上角交汇区拖出可同时创建横、竖两条，拖出页面范围即可删除。</p>
+          <p>从“拖入新增”将素材拖到画布，落点会转换为当前单位下的世界坐标。</p>
         </div>
       </aside>
 
@@ -103,6 +124,8 @@
           :snap="snapEnabled"
           :snap-grid-size="snapGridSize"
           :guides-visible="guidesVisible"
+          :background-style="canvasBackgroundStyle"
+          :overlay-class="scene === 'print' ? 'print-structure-overlay' : ''"
           hover-class="demo-element-wrapper-hover"
           :hover-style-mode="hoverStyleMode"
           :get-capabilities="getCapabilities"
@@ -112,7 +135,12 @@
           @guide-remove="lastAction = '删除辅助线'"
           @delete-request="deleteElements"
           @element-hover="onElementHover"
+          @external-drop="onExternalDrop"
         >
+          <template #background v-if="scene === 'screen'">
+            <div class="screen-stage-background" />
+          </template>
+
           <template #element="{ element, isHover }">
             <DemoElementContent :element="element" :scene="scene" :is-hover="isHover" />
           </template>
@@ -191,6 +219,7 @@ import { Button, ButtonGroup, Checkbox, InputNumber, Select, Slider, Switch, typ
 import DemoElementContent from './DemoElementContent.vue'
 import {
   DesignerCanvas,
+  type DesignerCanvasDropEvent,
   type DesignerCanvasExpose,
   type DesignerElementBase,
   type DesignerElementCapabilities,
@@ -205,6 +234,17 @@ import {
 
 type Scene = 'screen' | 'print'
 type GeometryKey = 'left' | 'top' | 'width' | 'height'
+
+interface PaletteItem {
+  kind: string
+  title: string
+  color: string
+  width: number
+  height: number
+  text?: string
+}
+
+const DEMO_DROP_TYPE = 'application/x-yiz-editor-demo-element'
 
 const { scene, worldSize, unit, minZoom, snapGridSize } = defineProps<{
   scene: Scene
@@ -230,8 +270,24 @@ const hoverModeOptions = [
   { label: 'Hover · 蒙版', value: 'mask' },
   { label: 'Hover · 外框', value: 'outline' }
 ]
+const paletteItems = computed<PaletteItem[]>(() =>
+  scene === 'screen'
+    ? [
+        { kind: 'metric', title: '指标卡片', color: '#38bdf8', width: 360, height: 200, text: '12,680' },
+        { kind: 'bars', title: '趋势图', color: '#8b5cf6', width: 520, height: 300 },
+        { kind: 'map', title: '区域图', color: '#06b6d4', width: 520, height: 380 }
+      ]
+    : [
+        { kind: 'print-text', title: '文本框', color: '#64748b', width: 72, height: 12, text: '拖入的文本内容' },
+        { kind: 'print-table', title: '明细表格', color: '#2563eb', width: 120, height: 52 },
+        { kind: 'print-qr', title: '二维码', color: '#0f172a', width: 24, height: 24 }
+      ]
+)
 
 const selectedElement = computed(() => elements.value.find((element) => element.id === selectedIds.value[0]))
+const canvasBackgroundStyle = computed<Record<string, string>>(() =>
+  scene === 'screen' ? { backgroundColor: '#071426' } : { backgroundColor: '#ffffff' }
+)
 const selectedElementLocked = computed({
   get: () => Boolean(selectedElement.value?.locked),
   set: (locked: boolean | undefined) => {
@@ -302,6 +358,51 @@ function updateGeometry(key: GeometryKey, value: number | null | undefined): voi
 function clearGuides(): void {
   guides.value = guides.value.filter((guide) => guide.locked)
   lastAction.value = '清除辅助线'
+}
+
+function onPaletteDragstart(event: DragEvent, item: PaletteItem): void {
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'copy'
+  event.dataTransfer.setData(DEMO_DROP_TYPE, JSON.stringify(item))
+  event.dataTransfer.setData('text/plain', item.title)
+  lastAction.value = `拖动 ${item.title}`
+}
+
+function onExternalDrop(event: DesignerCanvasDropEvent): void {
+  if (!event.insideWorld) {
+    lastAction.value = '拖入位置不在画布内'
+    return
+  }
+  const source = event.originalEvent.dataTransfer?.getData(DEMO_DROP_TYPE)
+  if (!source) return
+
+  let item: PaletteItem
+  try {
+    item = JSON.parse(source) as PaletteItem
+  } catch {
+    lastAction.value = '无法识别拖入元素'
+    return
+  }
+
+  const width = Math.min(item.width, worldSize.width)
+  const height = Math.min(item.height, worldSize.height)
+  const left = unit.normalize(Math.min(Math.max(event.worldPoint.x - width / 2, 0), worldSize.width - width))
+  const top = unit.normalize(Math.min(Math.max(event.worldPoint.y - height / 2, 0), worldSize.height - height))
+  const id = `${scene}-${item.kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const element: DesignerElementBase = {
+    id,
+    kind: item.kind,
+    title: item.title,
+    text: item.text,
+    color: item.color,
+    left,
+    top,
+    width: unit.normalize(width),
+    height: unit.normalize(height)
+  }
+  elements.value = [...elements.value, element]
+  selectedIds.value = [id]
+  lastAction.value = `新增 ${item.title} · ${unit.format(left)}, ${unit.format(top)} ${unit.symbol}`
 }
 
 function printBoundaryStyle(position: number): Record<string, string> {

@@ -39,8 +39,10 @@
           <h2>DesignerCanvas 负责</h2>
           <ul>
             <li>坐标换算、缩放、平移、适应窗口</li>
+            <li>世界坐标背景层与业务结构覆盖层</li>
             <li>标尺、辅助线、吸附与对齐提示</li>
             <li>选择、框选、移动、缩放和键盘微调</li>
+            <li>外部拖放接收与落点世界坐标换算</li>
             <li>Hover 状态与操作生命周期事件</li>
           </ul>
         </section>
@@ -69,6 +71,7 @@ const features = [
   { title: '完整几何交互', description: '提供单选、多选、CAD 框选、移动、八方向缩放与 Shift 等比缩放。' },
   { title: '标尺与辅助线', description: '高 DPI 标尺、单线创建、左上角双线创建、移动删除与坐标标签。' },
   { title: '吸附系统', description: '支持画布、网格、辅助线及其他元素的边缘与中心吸附。' },
+  { title: '外部拖入', description: '统一接收 HTML5 拖放，并返回缩放、平移及 px/mm 单位换算后的世界坐标。' },
   { title: '插槽渲染', description: '外部通过 element 插槽渲染任意业务组件，并获得 selected、isHover 与 zoom。' },
   { title: '受控状态', description: 'elements、selectedIds、hoveredId、transform 与 guides 均支持 v-model。' }
 ]
@@ -80,9 +83,16 @@ const usageCode = `<DesignerCanvas
   v-model:guides="guides"
   :world-size="{ width: 210, height: 297 }"
   :unit="millimeterUnit"
+  :background-style="{ backgroundColor: '#fff' }"
 >
+  <template #background>
+    <MyPageBackground />
+  </template>
   <template #element="{ element, isHover }">
     <MyElement :element="element" :is-hover="isHover" />
+  </template>
+  <template #overlay>
+    <MyBusinessGuides />
   </template>
 </DesignerCanvas>`
 

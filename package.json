@@ -10,6 +10,7 @@
   ],
   "type": "module",
   "publishConfig": {
+    "access": "public",
     "registry": "https://registry.npmjs.org"
   },
   "homepage": "https://eakerzt.github.io/yiz-editor/",

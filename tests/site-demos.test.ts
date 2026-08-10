@@ -6,6 +6,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '../site/App.vue'
 import { routes } from '../site/router'
+import DesignerCanvas from '../scripts/designer-canvas/DesignerCanvas.vue'
 
 class ResizeObserverMock {
   observe(): void {}
@@ -43,10 +44,15 @@ describe('yiz-editor demo site', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('DesignerCanvas 的完整公开接口')
-    expect(wrapper.text()).toContain('Props（29）')
+    expect(wrapper.text()).toContain('Props（34）')
+    expect(wrapper.text()).toContain('backgroundStyle')
+    expect(wrapper.text()).toContain('overlayStyle')
+    expect(wrapper.text()).toContain('dropEnabled')
+    expect(wrapper.text()).toContain('external-drop')
     expect(wrapper.text()).toContain('guidesVisible')
     expect(wrapper.text()).toContain('constrainTransform')
     expect(wrapper.text()).toContain('viewport-overlay')
+    expect(wrapper.text()).toContain('background')
     expect(wrapper.text()).toContain('stageLengthToWorld(value)')
 
     const apiNavButtons = wrapper.findAll('.api-section-nav button')
@@ -74,6 +80,8 @@ describe('yiz-editor demo site', () => {
       { label: '打印模板设计器', value: 'print-template-designer' }
     ])
     expect(wrapper.find('[data-element-id="screen-title"]').exists()).toBe(true)
+    expect(wrapper.findAll('.palette-item')).toHaveLength(3)
+    expect(wrapper.get('[data-palette-kind="metric"]').attributes('draggable')).toBe('true')
     expect(wrapper.get('.canvas-status').text()).not.toContain('大屏设计器')
     expect(wrapper.get('.canvas-status').text()).not.toContain('1920 × 1080')
 
@@ -89,6 +97,32 @@ describe('yiz-editor demo site', () => {
     zoomSlider.vm.$emit('update:value', 80)
     await flushPromises()
     expect(wrapper.get('.zoom-value').text()).toBe('80%')
+
+    const canvas = wrapper.getComponent(DesignerCanvas)
+    const beforeDropCount = wrapper.findAll('[data-element-id]').length
+    canvas.vm.$emit('external-drop', {
+      originalEvent: {
+        dataTransfer: {
+          getData: (type: string) =>
+            type === 'application/x-yiz-editor-demo-element'
+              ? JSON.stringify({
+                  kind: 'metric',
+                  title: '指标卡片',
+                  color: '#38bdf8',
+                  width: 360,
+                  height: 200,
+                  text: '12,680'
+                })
+              : ''
+        }
+      } as unknown as DragEvent,
+      viewportPoint: { x: 0, y: 0 },
+      worldPoint: { x: 1000, y: 600 },
+      insideWorld: true
+    })
+    await flushPromises()
+    expect(wrapper.findAll('[data-element-id]')).toHaveLength(beforeDropCount + 1)
+    expect(wrapper.get('.canvas-status').text()).toContain('新增 指标卡片')
 
     const guidesSwitch = wrapper.getComponent(Switch)
     expect(wrapper.find('[data-guide-id="screen-guide-x"]').exists()).toBe(true)

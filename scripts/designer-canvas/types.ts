@@ -116,6 +116,13 @@ export interface DesignerElementHoverEvent<T extends DesignerElementBase = Desig
   originalEvent: PointerEvent
 }
 
+export interface DesignerCanvasDropEvent {
+  originalEvent: DragEvent
+  viewportPoint: DesignerPoint
+  worldPoint: DesignerPoint
+  insideWorld: boolean
+}
+
 export type DesignerHoverStyleMode = 'none' | 'background' | 'mask' | 'outline'
 
 export interface DesignerCoordinateApi {

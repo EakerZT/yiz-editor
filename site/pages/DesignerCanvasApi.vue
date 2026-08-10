@@ -74,6 +74,30 @@ const propRows: ApiRow[] = [
     description: '内置 Hover 视觉模式。'
   },
   {
+    name: 'backgroundClass',
+    type: 'string',
+    defaultValue: "''",
+    description: '附加到世界坐标背景层的 class。'
+  },
+  {
+    name: 'backgroundStyle',
+    type: 'Record<string, string | number>',
+    defaultValue: '{}',
+    description: '世界坐标背景层样式，可配置背景色、背景图片及填充方式。'
+  },
+  {
+    name: 'overlayClass',
+    type: 'string',
+    defaultValue: "''",
+    description: '附加到世界坐标覆盖层的 class。'
+  },
+  {
+    name: 'overlayStyle',
+    type: 'Record<string, string | number>',
+    defaultValue: '{}',
+    description: '世界坐标覆盖层样式。'
+  },
+  {
     name: 'worldSize',
     type: 'DesignerSize',
     defaultValue: '必填',
@@ -119,6 +143,12 @@ const propRows: ApiRow[] = [
     description: '是否限制元素变换结果位于世界画布范围内。'
   },
   { name: 'disabled', type: 'boolean', defaultValue: 'false', description: '是否禁用设计器几何交互。' },
+  {
+    name: 'dropEnabled',
+    type: 'boolean',
+    defaultValue: 'true',
+    description: '是否接收外部 HTML5 拖放并换算落点坐标。'
+  },
   { name: 'snap', type: 'boolean', defaultValue: 'true', description: '是否启用吸附。' },
   { name: 'snapThreshold', type: 'number', defaultValue: '6', description: '吸附触发距离，单位为视口 CSS px。' },
   { name: 'snapGridSize', type: 'number', defaultValue: '0', description: '网格吸附步长；0 表示不启用网格候选。' },
@@ -200,10 +230,28 @@ const eventRows: ApiRow[] = [
     type: 'DesignerElementHoverEvent',
     defaultValue: '—',
     description: '元素进入或离开 Hover 状态。'
+  },
+  {
+    name: 'external-dragover',
+    type: 'DesignerCanvasDropEvent',
+    defaultValue: '—',
+    description: '外部对象在画布上拖动时触发，提供视口坐标、世界坐标及是否位于 World 内。'
+  },
+  {
+    name: 'external-drop',
+    type: 'DesignerCanvasDropEvent',
+    defaultValue: '—',
+    description: '外部对象释放时触发；组件负责坐标换算，业务负责读取 dataTransfer 并创建元素。'
   }
 ]
 
 const slotRows: ApiRow[] = [
+  {
+    name: 'background',
+    type: '{ transform, coordinate }',
+    defaultValue: '—',
+    description: '位于元素下方的世界坐标背景层，随画布缩放和平移且不接管指针。'
+  },
   {
     name: 'element',
     type: '{ element, selected, hovered, isHover, zoom }',
@@ -215,7 +263,7 @@ const slotRows: ApiRow[] = [
     name: 'overlay',
     type: '{ transform, coordinate }',
     defaultValue: '—',
-    description: '世界坐标覆盖层，随画布缩放和平移。'
+    description: '位于元素上方的世界坐标覆盖层，随画布缩放和平移且不接管指针。'
   },
   {
     name: 'viewport-overlay',

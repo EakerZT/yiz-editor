@@ -32,7 +32,9 @@ DesignerCanvas
 ├─ CanvasRuler           横纵标尺与动态刻度
 ├─ GuideLayer            用户辅助线
 ├─ Stage                 业务画布
+├─ BackgroundLayer       业务背景，位于元素下方
 ├─ ElementLayer          元素几何包装层
+├─ WorldOverlay          业务结构覆盖层，位于元素上方
 ├─ SelectionLayer        单选、多选、框选
 ├─ HoverLayer            hover 描边与外部事件
 ├─ MoveController        元素移动与键盘微调
@@ -98,6 +100,7 @@ stageLengthToWorld()
 - World 坐标系统。
 - zoom、offset、平移和指针中心缩放。
 - 标尺和用户辅助线。
+- 世界坐标背景层与业务结构覆盖层。
 - 元素定位外层。
 - 单选、多选、框选。
 - 多选统一边界框。
@@ -108,6 +111,7 @@ stageLengthToWorld()
 - 吸附候选计算与吸附提示线。
 - 操作开始、变化、结束事件。
 - 画布边界与外部约束回调。
+- 外部 HTML5 拖放接收与落点世界坐标换算。
 
 ### 5.2 外部业务负责
 
@@ -216,9 +220,14 @@ interface DesignerElementCapabilities {
   v-model:guides="guides"
   :world-size="{ width: 210, height: 297 }"
   :unit="millimeterUnit"
+  :background-style="{ backgroundColor: '#fff' }"
   :get-capabilities="getCapabilities"
   :constrain-transform="constrainTransform"
 >
+  <template #background="{ transform, coordinate }">
+    <!-- 大屏背景图片、网格或打印纸张背景 -->
+  </template>
+
   <template #element="{ element, selected, zoom }">
     <component
       :is="resolveRenderer(element)"
@@ -228,13 +237,28 @@ interface DesignerElementCapabilities {
     />
   </template>
 
-  <template #overlay>
+  <template #overlay="{ transform, coordinate }">
     <!-- 页眉/页脚分界线等业务结构 -->
   </template>
 </DesignerCanvas>
 ```
 
 外部元素组件不再处理定位、选择框、控制点或鼠标坐标换算。
+
+`backgroundClass`、`backgroundStyle` 和 `#background` 配置位于元素下方的 World 背景层；`overlayClass`、`overlayStyle` 和 `#overlay` 配置位于元素上方的 World 覆盖层。两层都随 Stage 使用同一 transform 与单位换算，并默认不接管指针事件。背景用于大屏背景色、背景图片、网格或打印纸张视觉；overlay 用于页眉页脚分界线、安全区等非交互业务结构。
+
+外部素材通过原生 HTML5 Drag and Drop 进入 Surface。`DesignerCanvas` 在 `dragover` 和 `drop` 时统一扣除 Surface 的 DOM 偏移，并应用当前 zoom、offset 与 UnitAdapter，发出：
+
+```ts
+interface DesignerCanvasDropEvent {
+  originalEvent: DragEvent
+  viewportPoint: DesignerPoint
+  worldPoint: DesignerPoint
+  insideWorld: boolean
+}
+```
+
+组件不解析 `dataTransfer`，也不直接创建业务元素。外部在 `external-drop` 中读取素材类型、决定默认宽高与业务字段，再更新 `elements`。World 外的坐标不会被强制截断，业务可通过 `insideWorld` 明确拒绝或自定义处理。
 
 ## 10. 受控状态
 
@@ -416,6 +440,8 @@ snapToElements: boolean
 14. TransformEngine 与刻度算法单元测试。
 15. SnapEngine：网格、画布、辅助线、元素边缘与中心吸附。
 16. Shift 角点/边点等比缩放。
+17. 世界坐标背景配置、背景插槽和业务结构 overlay。
+18. 外部拖放接收、落点坐标换算及大屏/打印演示素材创建。
 
 ## 17. 当前限制
 
